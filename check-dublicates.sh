@@ -1,11 +1,12 @@
-#!/bin/sh
+#!/bin/bash
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games
+export HOME=/home/fftr-webhooks
 cd /var/www/fftr-webhooks/check-dublicates/fftr-peers
 if ! git pull > /dev/null 2>&1; then
 	exit
 fi
 TMPFILE=`mktemp /tmp/fftr-peers-dubchecker-XXXXXX`
-grep --no-filename "key" * | sort | uniq -d > $TMPFILE
+grep --no-filename "key" * | grep -v '#' | egrep -o "[0-9a-f]{60,80}" | sort | uniq -d > $TMPFILE
 
   ### IRC message formatting.  For reference:
   ### \002 bold   \003 color   \017 reset  \026 italic/reverse  \037 underline
@@ -18,18 +19,40 @@ grep --no-filename "key" * | sort | uniq -d > $TMPFILE
 #    "\00302\037#{s}\017"
 #  end
 if [ -s "$TMPFILE" ]; then
-  echo '/COLOR-RED-ESCAPE/found dublicate keys:/COLOR-RESET-ESCAPE/'
-  egrep -o "key \"[0-9a-f]{0,80}" "$TMPFILE" | head -n 3 | while read i; do
+  echo '/COLOR-RED-ESCAPE/found duplicate keys:/COLOR-RESET-ESCAPE/'
+  cat "$TMPFILE" | head -n 3 | while read i; do
     echo -n "$i ("
     grep -F "$i" -l -r . | egrep -o "[-_0-9a-zA-Z]{0,80}" | while read node; do
       echo -n "$node, ";
     done | head -c -2
     echo ")"
   done
+
+  echo -n "Removing keys: "
+  cat "$TMPFILE" | while read i; do
+    MINTIME=9999999999
+    MINFILE=""
+    grep -F "$i" -l -r . | egrep -o "[-_0-9a-zA-Z]{0,80}" | while read node; do
+      TIME=`git log -n 1 --format=format:%ct "$node"`
+      if [ "$TIME" -lt "$MINTIME" ]; then
+        MINTIME="$TIME"
+        MINFILE="$node"
+      fi
+      echo "$MINFILE" > "$TMPFILE-2"
+    done
+    MINFILE="$(cat "$TMPFILE-2")"
+    if [ -f "$MINFILE" ]; then
+      echo -n "$MINFILE, "
+      git rm "$MINFILE" > /dev/null 2>&1
+    fi
+  done | head -c -2
+  echo
+  git commit -m "fftr-commitcheck: removed duplicate keys" >/dev/null 2>&1
+  git push writable >/dev/null 2>&1
 else
-  echo '/COLOR-GREEN-ESCAPE/found no dublicate keys/COLOR-RESET-ESCAPE/'
+  echo '/COLOR-GREEN-ESCAPE/found no duplicate keys/COLOR-RESET-ESCAPE/'
 fi
 #/COLOR-RED-ESCAPE/ \00304\037
 #/COLOR-GREEN-ESCAPE/ \00303\037
 #/COLOR-RESET-ESCAPE/ \017
-rm $TMPFILE
+rm -f $TMPFILE "$TMPFILE-2"
