@@ -22,7 +22,7 @@ if [ -s "$TMPFILE" ]; then
   echo '/COLOR-RED-ESCAPE/found duplicate keys:/COLOR-RESET-ESCAPE/'
   cat "$TMPFILE" | head -n 3 | while read i; do
     echo -n "$i ("
-    grep -F "$i" -l -r . | egrep -o "[-_0-9a-zA-Z]{0,80}" | while read node; do
+    grep -F "$i" -l -r . | sed 's-./--' | egrep -o "[-._0-9a-zA-Z]{0,80}" | while read node; do
       echo -n "$node, ";
     done | head -c -2
     echo ")"
@@ -32,7 +32,7 @@ if [ -s "$TMPFILE" ]; then
   cat "$TMPFILE" | while read i; do
     MINTIME=9999999999
     MINFILE=""
-    grep -F "$i" -l -r . | egrep -o "[-_0-9a-zA-Z]{0,80}" | while read node; do
+    grep -F "$i" -l -r . | sed 's-./--'| egrep -o "[-._0-9a-zA-Z]{0,80}" | while read node; do
       TIME=`git log -n 1 --format=format:%ct "$node"`
       if [ "$TIME" -lt "$MINTIME" ]; then
         MINTIME="$TIME"
